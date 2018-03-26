@@ -25,11 +25,13 @@ import android.content.res.Resources;
 import android.content.res.TypedArray;
 import android.graphics.Color;
 import android.graphics.drawable.Drawable;
+import android.graphics.Point;
 import android.os.Build;
 import android.util.DisplayMetrics;
 import android.util.TypedValue;
 import android.view.*;
 import android.widget.FrameLayout.LayoutParams;
+import java.lang.reflect.InvocationTargetException;
 
 /**
  * Class to manage status and navigation bar tint effects when using KitKat 
@@ -293,8 +295,6 @@ public class SystemBarTintManager {
 	public class SystemBarConfig {
 
 		private static final String STATUS_BAR_HEIGHT_RES_NAME = "status_bar_height";
-		private static final String NAV_BAR_HEIGHT_RES_NAME = "navigation_bar_height";
-		private static final String NAV_BAR_HEIGHT_LANDSCAPE_RES_NAME = "navigation_bar_height_landscape";
 		private static final String NAV_BAR_WIDTH_RES_NAME = "navigation_bar_width";
 
 		private boolean mTranslucentStatusBar;
@@ -337,16 +337,45 @@ public class SystemBarTintManager {
 			int result = 0;
 			if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.ICE_CREAM_SANDWICH) {
 				if (!ViewConfiguration.get(context).hasPermanentMenuKey()) {
-					String key;
-					if (mInPortrait) {
-						key = NAV_BAR_HEIGHT_RES_NAME;
-					} else {
-						key = NAV_BAR_HEIGHT_LANDSCAPE_RES_NAME;
+					Point appUsableSize = getAppUsableScreenSize(context);
+					Point realScreenSize = getRealScreenSize(context);
+					if (appUsableSize.x < realScreenSize.x) {
+						result = realScreenSize.x - appUsableSize.x;
+					} else if (appUsableSize.y < realScreenSize.y) {
+						result = realScreenSize.y - appUsableSize.y;
 					}
-					return getInternalDimensionSize(res, key);
+
+					return result;
 				}
 			}
 			return result;
+		}
+
+		@TargetApi(14)
+		public Point getAppUsableScreenSize(Context context) {
+			WindowManager windowManager = (WindowManager) context.getSystemService(Context.WINDOW_SERVICE);
+			Display display = windowManager.getDefaultDisplay();
+			Point size = new Point();
+			display.getSize(size);
+			return size;
+		}
+
+		@TargetApi(14)
+		public Point getRealScreenSize(Context context) {
+			WindowManager windowManager = (WindowManager) context.getSystemService(Context.WINDOW_SERVICE);
+			Display display = windowManager.getDefaultDisplay();
+			Point size = new Point();
+
+			if (Build.VERSION.SDK_INT >= 17) {
+				display.getRealSize(size);
+			} else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.ICE_CREAM_SANDWICH) {
+				try {
+					size.x = (Integer) Display.class.getMethod("getRawWidth").invoke(display);
+					size.y = (Integer) Display.class.getMethod("getRawHeight").invoke(display);
+				} catch (IllegalAccessException e) {} catch (InvocationTargetException e) {} catch (NoSuchMethodException e) {}
+			}
+
+			return size;
 		}
 		
 		@TargetApi(14)
